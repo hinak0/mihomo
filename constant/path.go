@@ -5,14 +5,13 @@ import (
 	"os"
 	P "path"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/constant/features"
 )
 
-const Name = "mihomo"
+const Name = "clash"
 
 var (
 	GeositeName = "GeoSite.dat"
@@ -21,33 +20,10 @@ var (
 )
 
 // Path is used to get the configuration path
-//
-// on Unix systems, `$HOME/.config/mihomo`.
-// on Windows, `%USERPROFILE%/.config/mihomo`.
 var Path = func() *path {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		homeDir, _ = os.Getwd()
-	}
-	allowUnsafePath, _ := strconv.ParseBool(os.Getenv("SKIP_SAFE_PATH_CHECK"))
-	homeDir = P.Join(homeDir, ".config", Name)
-
-	if _, err = os.Stat(homeDir); err != nil {
-		if configHome, ok := os.LookupEnv("XDG_CONFIG_HOME"); ok {
-			homeDir = P.Join(configHome, Name)
-		}
-	}
-
+	homeDir, _ := os.Getwd()
 	var safePaths []string
-	for _, safePath := range filepath.SplitList(os.Getenv("SAFE_PATHS")) {
-		safePath = strings.TrimSpace(safePath)
-		if len(safePath) == 0 {
-			continue
-		}
-		safePaths = append(safePaths, safePath)
-	}
-
-	return &path{homeDir: homeDir, configFile: "config.yaml", allowUnsafePath: allowUnsafePath, safePaths: safePaths}
+	return &path{homeDir: homeDir, configFile: "config.yaml", allowUnsafePath: true, safePaths: safePaths}
 }()
 
 type path struct {
@@ -215,7 +191,7 @@ func (p *path) GetAssetLocation(file string) string {
 func (p *path) GetExecutableFullPath() string {
 	exePath, err := os.Executable()
 	if err != nil {
-		return "mihomo"
+		return Name
 	}
 	res, _ := filepath.EvalSymlinks(exePath)
 	return res
