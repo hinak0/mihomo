@@ -117,7 +117,6 @@ type Cors struct {
 
 // Experimental config
 type Experimental struct {
-	Fingerprints     []string
 	QUICGoDisableGSO bool
 	QUICGoDisableECN bool
 	IP4PEnable       bool
@@ -147,6 +146,7 @@ type DNS struct {
 	PreferH3              bool
 	IPv6                  bool
 	IPv6Timeout           uint
+	UseHosts              bool
 	UseSystemHosts        bool
 	NameServer            []dns.NameServer
 	Fallback              []dns.NameServer
@@ -158,7 +158,6 @@ type DNS struct {
 	CacheAlgorithm        string
 	CacheMaxSize          int
 	FakeIPRange           *fakeip.Pool
-	Hosts                 *trie.DomainTrie[resolver.HostValue]
 	NameServerPolicy      []dns.Policy
 	ProxyServerNameserver []dns.NameServer
 	DirectNameServer      []dns.NameServer
@@ -175,6 +174,8 @@ type Profile struct {
 type TLS struct {
 	Certificate     string
 	PrivateKey      string
+	ClientAuthType  string
+	ClientAuthCert  string
 	EchKey          string
 	CustomTrustCert []string
 }
@@ -292,6 +293,7 @@ type RawTun struct {
 	ExcludePackage         []string       `yaml:"exclude-package" json:"exclude-package,omitempty"`
 	EndpointIndependentNat bool           `yaml:"endpoint-independent-nat" json:"endpoint-independent-nat,omitempty"`
 	UDPTimeout             int64          `yaml:"udp-timeout" json:"udp-timeout,omitempty"`
+	DisableICMPForwarding  bool           `yaml:"disable-icmp-forwarding" json:"disable-icmp-forwarding,omitempty"`
 	FileDescriptor         int            `yaml:"file-descriptor" json:"file-descriptor"`
 
 	Inet4RouteAddress        []netip.Prefix `yaml:"inet4-route-address" json:"inet4-route-address,omitempty"`
@@ -368,6 +370,8 @@ type RawSniffingConfig struct {
 type RawTLS struct {
 	Certificate     string   `yaml:"certificate" json:"certificate"`
 	PrivateKey      string   `yaml:"private-key" json:"private-key"`
+	ClientAuthType  string   `yaml:"client-auth-type" json:"client-auth-type"`
+	ClientAuthCert  string   `yaml:"client-auth-cert" json:"client-auth-cert"`
 	EchKey          string   `yaml:"ech-key" json:"ech-key"`
 	CustomTrustCert []string `yaml:"custom-certifactes" json:"custom-certifactes"`
 }
@@ -676,7 +680,7 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	}
 	config.Hosts = hosts
 
-	dnsCfg, err := parseDNS(rawCfg, hosts, ruleProviders)
+	dnsCfg, err := parseDNS(rawCfg, ruleProviders)
 	if err != nil {
 		return nil, err
 	}
@@ -790,7 +794,6 @@ func parseController(cfg *RawConfig) (*Controller, error) {
 
 func parseExperimental(cfg *RawConfig) (*Experimental, error) {
 	return &Experimental{
-		Fingerprints:     cfg.Experimental.Fingerprints,
 		QUICGoDisableGSO: cfg.Experimental.QUICGoDisableGSO,
 		QUICGoDisableECN: cfg.Experimental.QUICGoDisableECN,
 		IP4PEnable:       cfg.Experimental.IP4PEnable,
@@ -828,6 +831,8 @@ func parseTLS(cfg *RawConfig) (*TLS, error) {
 	return &TLS{
 		Certificate:     cfg.TLS.Certificate,
 		PrivateKey:      cfg.TLS.PrivateKey,
+		ClientAuthType:  cfg.TLS.ClientAuthType,
+		ClientAuthCert:  cfg.TLS.ClientAuthCert,
 		EchKey:          cfg.TLS.EchKey,
 		CustomTrustCert: cfg.TLS.CustomTrustCert,
 	}, nil
@@ -1336,7 +1341,7 @@ func parseNameServerPolicy(nsPolicy *orderedmap.OrderedMap[string, any], rulePro
 	return policy, nil
 }
 
-func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[resolver.HostValue], ruleProviders map[string]providerTypes.RuleProvider) (*DNS, error) {
+func parseDNS(rawCfg *RawConfig, ruleProviders map[string]providerTypes.RuleProvider) (*DNS, error) {
 	cfg := rawCfg.DNS
 	if cfg.Enable && len(cfg.NameServer) == 0 {
 		return nil, fmt.Errorf("if DNS configuration is turned on, NameServer cannot be empty")
@@ -1352,6 +1357,7 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[resolver.HostValue], rul
 		PreferH3:       cfg.PreferH3,
 		IPv6Timeout:    cfg.IPv6Timeout,
 		IPv6:           cfg.IPv6,
+		UseHosts:       cfg.UseHosts,
 		UseSystemHosts: cfg.UseSystemHosts,
 		EnhancedMode:   cfg.EnhancedMode,
 		CacheAlgorithm: cfg.CacheAlgorithm,
@@ -1485,10 +1491,6 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[resolver.HostValue], rul
 		}
 	}
 
-	if cfg.UseHosts {
-		dnsCfg.Hosts = hosts
-	}
-
 	return dnsCfg, nil
 }
 
@@ -1552,6 +1554,7 @@ func parseTun(rawTun RawTun, general *General) error {
 		ExcludePackage:         rawTun.ExcludePackage,
 		EndpointIndependentNat: rawTun.EndpointIndependentNat,
 		UDPTimeout:             rawTun.UDPTimeout,
+		DisableICMPForwarding:  rawTun.DisableICMPForwarding,
 		FileDescriptor:         rawTun.FileDescriptor,
 
 		Inet4RouteAddress:        rawTun.Inet4RouteAddress,
