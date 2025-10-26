@@ -24,7 +24,7 @@ jobs:
               debian: amd64,
               rpm: x86_64,
               pacman: x86_64,
-              goamd64: v3,
+              goamd64: v2,
             }
     steps:
       - uses: actions/checkout@v5
