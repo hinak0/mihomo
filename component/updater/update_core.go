@@ -17,17 +17,12 @@ import (
 
 	"github.com/metacubex/mihomo/component/ca"
 	mihomoHttp "github.com/metacubex/mihomo/component/http"
-	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
 	"github.com/metacubex/mihomo/log"
 )
 
 const (
-	baseReleaseURL    = "https://github.com/MetaCubeX/mihomo/releases/latest/download/"
-	versionReleaseURL = "https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt"
-
-	baseAlphaURL    = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/"
-	versionAlphaURL = "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt"
+	baseReleaseURL = "https://github.com/hinak0/mihomo/releases/latest/download/"
+	PackageName    = "mihomo-linux-amd64"
 
 	// MaxPackageFileSize is a maximum package file length in bytes. The largest
 	// package whose size is limited by this constant currently has the size of
@@ -48,67 +43,13 @@ type CoreUpdater struct {
 
 var DefaultCoreUpdater = CoreUpdater{}
 
-func (u *CoreUpdater) CoreBaseName() string {
-	switch runtime.GOARCH {
-	case "arm":
-		// mihomo-linux-armv5
-		return fmt.Sprintf("mihomo-%s-%sv%s", runtime.GOOS, runtime.GOARCH, features.GOARM)
-	case "arm64":
-		if runtime.GOOS == "android" {
-			// mihomo-android-arm64-v8
-			return fmt.Sprintf("mihomo-%s-%s-v8", runtime.GOOS, runtime.GOARCH)
-		} else {
-			// mihomo-linux-arm64
-			return fmt.Sprintf("mihomo-%s-%s", runtime.GOOS, runtime.GOARCH)
-		}
-	case "mips", "mipsle":
-		// mihomo-linux-mips-hardfloat
-		return fmt.Sprintf("mihomo-%s-%s-%s", runtime.GOOS, runtime.GOARCH, features.GOMIPS)
-	case "amd64":
-		// mihomo-linux-amd64-v1
-		return fmt.Sprintf("mihomo-%s-%s-%s", runtime.GOOS, runtime.GOARCH, features.GOAMD64)
-	default:
-		// mihomo-linux-386
-		// mihomo-linux-mips64
-		// mihomo-linux-riscv64
-		// mihomo-linux-s390x
-		return fmt.Sprintf("mihomo-%s-%s", runtime.GOOS, runtime.GOARCH)
-	}
-}
-
-func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) (err error) {
+func (u *CoreUpdater) Update(currentExePath string) (err error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	info, err := os.Stat(currentExePath)
 	if err != nil {
 		return fmt.Errorf("check currentExePath %q: %w", currentExePath, err)
-	}
-
-	baseURL := baseAlphaURL
-	versionURL := versionAlphaURL
-	switch strings.ToLower(channel) {
-	case ReleaseChannel:
-		baseURL = baseReleaseURL
-		versionURL = versionReleaseURL
-	case AlphaChannel:
-		break
-	default: // auto
-		if !strings.HasPrefix(C.Version, "alpha") {
-			baseURL = baseReleaseURL
-			versionURL = versionReleaseURL
-		}
-	}
-
-	latestVersion, err := u.getLatestVersion(versionURL)
-	if err != nil {
-		return fmt.Errorf("get latest version: %w", err)
-	}
-	log.Infoln("current version %s, latest version %s", C.Version, latestVersion)
-
-	if latestVersion == C.Version && !force {
-		// don't change this output, some downstream dependencies on the upgrader's output fields
-		return fmt.Errorf("update error: already using latest version %s", C.Version)
 	}
 
 	defer func() {
@@ -119,29 +60,16 @@ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) 
 		}
 	}()
 
-	// ---- prepare ----
-	mihomoBaseName := u.CoreBaseName()
-	packageName := mihomoBaseName + "-" + latestVersion
-	if runtime.GOOS == "windows" {
-		packageName = packageName + ".zip"
-	} else {
-		packageName = packageName + ".gz"
-	}
-	packageURL := baseURL + packageName
+	packageURL := baseReleaseURL + PackageName + ".gz"
 	log.Infoln("updater: updating using url: %s", packageURL)
 
 	workDir := filepath.Dir(currentExePath)
-	backupDir := filepath.Join(workDir, "meta-backup")
-	updateDir := filepath.Join(workDir, "meta-update")
-	packagePath := filepath.Join(updateDir, packageName)
+	backupDir := filepath.Join(workDir, "core-backup")
+	updateDir := filepath.Join(workDir, "core-update")
+	packagePath := filepath.Join(updateDir, PackageName)
 	//log.Infoln(packagePath)
 
-	updateExeName := mihomoBaseName
-	if runtime.GOOS == "windows" {
-		updateExeName = updateExeName + ".exe"
-	}
-	log.Infoln("updateExeName: %s", updateExeName)
-	updateExePath := filepath.Join(updateDir, updateExeName)
+	updateExePath := filepath.Join(updateDir, PackageName)
 	backupExePath := filepath.Join(backupDir, filepath.Base(currentExePath))
 
 	defer u.clean(updateDir)
@@ -167,28 +95,6 @@ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) 
 	}
 
 	return nil
-}
-
-func (u *CoreUpdater) getLatestVersion(versionURL string) (version string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	resp, err := mihomoHttp.HttpRequest(ctx, versionURL, http.MethodGet, nil, nil, mihomoHttp.WithCAOption(ca.Option{ZeroTrust: true}))
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		closeErr := resp.Body.Close()
-		if closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	content := strings.TrimRight(string(body), "\n")
-	return content, nil
 }
 
 // download package file and save it to disk
