@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	baseReleaseURL = "https://github.com/hinak0/mihomo/releases/latest/download/"
-	PackageName    = "mihomo-linux-amd64"
+	DownloadBaseUrl = "https://github.com/hinak0/mihomo/releases/latest/download/"
+	PackageName     = "mihomo-linux-amd64"
 
 	// MaxPackageFileSize is a maximum package file length in bytes. The largest
 	// package whose size is limited by this constant currently has the size of
@@ -60,21 +60,21 @@ func (u *CoreUpdater) Update(currentExePath string) (err error) {
 		}
 	}()
 
-	packageURL := baseReleaseURL + PackageName + ".gz"
-	log.Infoln("updater: updating using url: %s", packageURL)
+	downloadURL := DownloadBaseUrl + PackageName + ".gz"
+	log.Infoln("updater: updating using url: %s", downloadURL)
 
 	workDir := filepath.Dir(currentExePath)
 	backupDir := filepath.Join(workDir, "core-backup")
 	updateDir := filepath.Join(workDir, "core-update")
-	packagePath := filepath.Join(updateDir, PackageName)
-	//log.Infoln(packagePath)
+	packagePath := filepath.Join(updateDir, PackageName+".gz")
+	log.Infoln(packagePath)
 
 	updateExePath := filepath.Join(updateDir, PackageName)
 	backupExePath := filepath.Join(backupDir, filepath.Base(currentExePath))
 
 	defer u.clean(updateDir)
 
-	err = u.download(updateDir, packagePath, packageURL)
+	err = u.download(updateDir, packagePath, downloadURL)
 	if err != nil {
 		return fmt.Errorf("downloading: %w", err)
 	}
