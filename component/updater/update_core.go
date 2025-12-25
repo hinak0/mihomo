@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +17,8 @@ import (
 	"github.com/metacubex/mihomo/component/ca"
 	mihomoHttp "github.com/metacubex/mihomo/component/http"
 	"github.com/metacubex/mihomo/log"
+
+	"github.com/metacubex/http"
 )
 
 const (
